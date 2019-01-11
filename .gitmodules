@@ -1,0 +1,3 @@
+[submodule "vendor/code.cloudfoundry.org/cli"]
+	path = vendor/code.cloudfoundry.org/cli
+	url = https://github.com/cloudfoundry/cli
