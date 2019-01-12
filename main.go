@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	. "github.com/zrob/cfmetadata-plugin/util"
+	"strings"
 )
 
 type CFMetadataPlugin struct{}
@@ -14,7 +15,7 @@ type ResourceList struct {
 }
 
 type ResourceModel struct {
-	Guid     string        `json:"guid"`
+	Guid     string        `json:"guid,omitempty"`
 	Metadata MetadataModel `json:"metadata"`
 }
 
@@ -31,8 +32,10 @@ func (c *CFMetadataPlugin) Run(cliConnection plugin.CliConnection, args []string
 	argCount := len(args)
 
 	if args[0] == "annotations" {
-		if argCount < 3 || argCount > 3 {
+		if argCount < 3 || argCount > 4 {
 			fmt.Println(c.GetMetadata().Commands[0].UsageDetails.Usage)
+		} else if argCount == 4 {
+			c.setAnnotations(cliConnection, args[1:])
 		} else {
 			c.getAnnotations(cliConnection, args[1:])
 		}
@@ -52,7 +55,7 @@ func (c *CFMetadataPlugin) GetMetadata() plugin.PluginMetadata {
 				Name:     "annotations",
 				HelpText: "view or modify annotations for an API resource",
 				UsageDetails: plugin.Usage{
-					Usage: "cf annotations RESOURCE RESOURCE_NAME",
+					Usage: "cf annotations RESOURCE RESOURCE_NAME KEY=VAL",
 				},
 			},
 		},
@@ -76,17 +79,49 @@ func (c *CFMetadataPlugin) getAnnotations(cliConnection plugin.CliConnection, ar
 		return
 	} else if len(resources.Resources) > 1 {
 		fmt.Printf("%s %s is ambiguous, more than one result returned\r\n", resource, name)
- 		return
-	} 
-
-	fmt.Printf("Annotations for %s %s\r\n\r\n", resource, name)
-	if len(resources.Resources[0].Metadata.Annotations) == 0 {
-		fmt.Println("None")
-	} else {
-		for key, val := range resources.Resources[0].Metadata.Annotations {
-			fmt.Printf("%s: %s\r\n", key, val)
-		}
+		return
 	}
+
+	displayAnnotations(resources.Resources[0], resource, name)
+}
+
+func (c *CFMetadataPlugin) setAnnotations(cliConnection plugin.CliConnection, args []string) {
+	resource := args[0]
+	name := args[1]
+	annotation := strings.Split(args[2], "=")
+
+	output, err := cliConnection.CliCommandWithoutTerminalOutput("curl", fmt.Sprintf("v3/%ss?names=%s", resource, name))
+	FreakOut(err)
+
+	response := parseCurlResponse(output)
+	resources := ResourceList{}
+	err = json.Unmarshal([]byte(response), &resources)
+	FreakOut(err)
+
+	if len(resources.Resources) == 0 {
+		fmt.Printf("%s %s not found\r\n", resource, name)
+		return
+	} else if len(resources.Resources) > 1 {
+		fmt.Printf("%s %s is ambiguous, more than one result returned\r\n", resource, name)
+		return
+	}
+
+	entity := resources.Resources[0]
+	entity.Metadata.Annotations[annotation[0]] = annotation[1]
+
+	url := fmt.Sprintf("v3/%ss/%s", resource, entity.Guid)
+
+	entity.Guid = ""
+	updateRequest, err := json.Marshal(entity)
+
+	output, err = cliConnection.CliCommandWithoutTerminalOutput("curl", url, "-X", "PATCH", "-d", string(updateRequest))
+	FreakOut(err)
+
+	response = parseCurlResponse(output)
+	err = json.Unmarshal([]byte(response), &entity)
+	FreakOut(err)
+
+	displayAnnotations(entity, resource, name)
 }
 
 func parseCurlResponse(output []string) string {
@@ -95,4 +130,15 @@ func parseCurlResponse(output []string) string {
 		responseString += part
 	}
 	return responseString
+}
+
+func displayAnnotations(entity ResourceModel, resource string, name string) {
+	fmt.Printf("Annotations for %s %s\r\n\r\n", resource, name)
+	if len(entity.Metadata.Annotations) == 0 {
+		fmt.Println("None")
+	} else {
+		for key, val := range entity.Metadata.Annotations {
+			fmt.Printf("%s: %s\r\n", key, val)
+		}
+	}
 }
