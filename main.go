@@ -50,6 +50,13 @@ func (c *CFMetadataPlugin) Run(cliConnection plugin.CliConnection, args []string
 			c.getLabels(cliConnection, args[1:])
 		}
 	}
+	if args[0] == "metadata" {
+		if argCount != 3 {
+			fmt.Println(c.GetMetadata().Commands[1].UsageDetails.Usage)
+		} else {
+			c.getMetadata(cliConnection, args[1:])
+		}
+	}
 }
 
 func (c *CFMetadataPlugin) GetMetadata() plugin.PluginMetadata {
@@ -75,8 +82,27 @@ func (c *CFMetadataPlugin) GetMetadata() plugin.PluginMetadata {
 					Usage: "cf labels RESOURCE RESOURCE_NAME KEY=VAL KEY-",
 				},
 			},
+			{
+				Name:     "metadata",
+				HelpText: "view labels and annotations for an API resource",
+				UsageDetails: plugin.Usage{
+					Usage: "cf metadata RESOURCE RESOURCE_NAME",
+				},
+			},
 		},
 	}
+}
+
+func (c *CFMetadataPlugin) getMetadata(cliConnection plugin.CliConnection, args []string) {
+	resource := args[0]
+	name := args[1]
+
+	entity, err := fetchResourceByName(cliConnection, resource, name)
+	FreakOut(err)
+
+	displayLabels(entity, resource, name)
+	fmt.Println("")
+	displayAnnotations(entity, resource, name)
 }
 
 func (c *CFMetadataPlugin) getAnnotations(cliConnection plugin.CliConnection, args []string) {
