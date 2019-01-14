@@ -3,6 +3,7 @@ package main
 import (
 	"code.cloudfoundry.org/cli/plugin"
 	"encoding/json"
+	"errors"
 	"fmt"
 	. "github.com/zrob/cfmetadata-plugin/util"
 	"strings"
@@ -88,24 +89,9 @@ func (c *CFMetadataPlugin) getAnnotations(cliConnection plugin.CliConnection, ar
 func (c *CFMetadataPlugin) setAnnotations(cliConnection plugin.CliConnection, args []string) {
 	resource := args[0]
 	name := args[1]
-	annotationsToAdd := make(map[string]string)
-	var annotationsToRemove []string
 
-	for _, a := range args[2:] {
-		if strings.Contains(a, "=") {
-			annotation := strings.Split(a, "=")
-			if len(annotation) != 2 {
-				fmt.Println("Annotations must be in the format of KEY=VAL or KEY-")
-				return
-			}
-			annotationsToAdd[annotation[0]] = annotation[1]
-		} else if strings.HasSuffix(a, "-") {
-			annotationsToRemove = append(annotationsToRemove, strings.TrimSuffix(a, "-"))
-		} else {
-			fmt.Println("Annotations must be in the format of KEY=VAL or KEY-")
-			return
-		}
-	}
+	annotationsToAdd, annotationsToRemove, err := parseSetUnsetArguments(args[2:], "Annotations must be in the format of KEY=VAL or KEY-")
+	FreakOut(err)
 
 	output, err := cliConnection.CliCommandWithoutTerminalOutput("curl", fmt.Sprintf("v3/%ss?names=%s", resource, name))
 	FreakOut(err)
@@ -165,4 +151,28 @@ func displayAnnotations(entity ResourceModel, resource string, name string) {
 			fmt.Printf("%s: %s\r\n", key, *val)
 		}
 	}
+}
+
+func parseSetUnsetArguments(args []string, errorText string) (toAdd map[string]string, toRemove []string, err error) {
+	toAdd = make(map[string]string)
+
+	for _, arg := range args {
+		if strings.Contains(arg, "=") {
+			addArgPieces := strings.Split(arg, "=")
+
+			if len(addArgPieces) != 2 {
+				err = errors.New(errorText)
+				return
+			}
+
+			toAdd[addArgPieces[0]] = addArgPieces[1]
+		} else if strings.HasSuffix(arg, "-") {
+			toRemove = append(toRemove, strings.TrimSuffix(arg, "-"))
+		} else {
+			err = errors.New(errorText)
+			return
+		}
+	}
+
+	return
 }
