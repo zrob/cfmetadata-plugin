@@ -32,9 +32,9 @@ func (c *CFMetadataPlugin) Run(cliConnection plugin.CliConnection, args []string
 	argCount := len(args)
 
 	if args[0] == "annotations" {
-		if argCount < 3 || argCount > 4 {
+		if argCount < 3 {
 			fmt.Println(c.GetMetadata().Commands[0].UsageDetails.Usage)
-		} else if argCount == 4 {
+		} else if argCount > 3 {
 			c.setAnnotations(cliConnection, args[1:])
 		} else {
 			c.getAnnotations(cliConnection, args[1:])
@@ -69,7 +69,7 @@ func (c *CFMetadataPlugin) getAnnotations(cliConnection plugin.CliConnection, ar
 	output, err := cliConnection.CliCommandWithoutTerminalOutput("curl", fmt.Sprintf("v3/%ss?names=%s", resource, name))
 	FreakOut(err)
 
-	response := parseCurlResponse(output)
+	response := stringifyCurlResponse(output)
 	resources := ResourceList{}
 	err = json.Unmarshal([]byte(response), &resources)
 	FreakOut(err)
@@ -88,12 +88,21 @@ func (c *CFMetadataPlugin) getAnnotations(cliConnection plugin.CliConnection, ar
 func (c *CFMetadataPlugin) setAnnotations(cliConnection plugin.CliConnection, args []string) {
 	resource := args[0]
 	name := args[1]
-	annotation := strings.Split(args[2], "=")
+	annotations := make(map[string]string)
+
+	for _, a := range args[2:] {
+		annotation := strings.Split(a, "=")
+		if len(annotation) != 2 {
+			fmt.Println("Annotations must be in the format of KEY=VAL")
+			return
+		}
+		annotations[annotation[0]] = annotation[1]
+	}
 
 	output, err := cliConnection.CliCommandWithoutTerminalOutput("curl", fmt.Sprintf("v3/%ss?names=%s", resource, name))
 	FreakOut(err)
 
-	response := parseCurlResponse(output)
+	response := stringifyCurlResponse(output)
 	resources := ResourceList{}
 	err = json.Unmarshal([]byte(response), &resources)
 	FreakOut(err)
@@ -107,24 +116,25 @@ func (c *CFMetadataPlugin) setAnnotations(cliConnection plugin.CliConnection, ar
 	}
 
 	entity := resources.Resources[0]
-	entity.Metadata.Annotations[annotation[0]] = annotation[1]
-
 	url := fmt.Sprintf("v3/%ss/%s", resource, entity.Guid)
-
 	entity.Guid = ""
+
+	for key, val := range annotations {
+		entity.Metadata.Annotations[key] = val
+	}
 	updateRequest, err := json.Marshal(entity)
 
 	output, err = cliConnection.CliCommandWithoutTerminalOutput("curl", url, "-X", "PATCH", "-d", string(updateRequest))
 	FreakOut(err)
 
-	response = parseCurlResponse(output)
+	response = stringifyCurlResponse(output)
 	err = json.Unmarshal([]byte(response), &entity)
 	FreakOut(err)
 
 	displayAnnotations(entity, resource, name)
 }
 
-func parseCurlResponse(output []string) string {
+func stringifyCurlResponse(output []string) string {
 	var responseString string
 	for _, part := range output {
 		responseString += part
