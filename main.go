@@ -56,7 +56,7 @@ func (c *CFMetadataPlugin) GetMetadata() plugin.PluginMetadata {
 				Name:     "annotations",
 				HelpText: "view or modify annotations for an API resource",
 				UsageDetails: plugin.Usage{
-					Usage: "cf annotations RESOURCE RESOURCE_NAME KEY=VAL",
+					Usage: "cf annotations RESOURCE RESOURCE_NAME KEY=VAL KEY-",
 				},
 			},
 		},
