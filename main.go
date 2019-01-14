@@ -67,23 +67,10 @@ func (c *CFMetadataPlugin) getAnnotations(cliConnection plugin.CliConnection, ar
 	resource := args[0]
 	name := args[1]
 
-	output, err := cliConnection.CliCommandWithoutTerminalOutput("curl", fmt.Sprintf("v3/%ss?names=%s", resource, name))
+	entity, err := fetchResourceByName(cliConnection, resource, name)
 	FreakOut(err)
 
-	response := stringifyCurlResponse(output)
-	resources := ResourceList{}
-	err = json.Unmarshal([]byte(response), &resources)
-	FreakOut(err)
-
-	if len(resources.Resources) == 0 {
-		fmt.Printf("%s %s not found\r\n", resource, name)
-		return
-	} else if len(resources.Resources) > 1 {
-		fmt.Printf("%s %s is ambiguous, more than one result returned\r\n", resource, name)
-		return
-	}
-
-	displayAnnotations(resources.Resources[0], resource, name)
+	displayAnnotations(entity, resource, name)
 }
 
 func (c *CFMetadataPlugin) setAnnotations(cliConnection plugin.CliConnection, args []string) {
@@ -93,45 +80,23 @@ func (c *CFMetadataPlugin) setAnnotations(cliConnection plugin.CliConnection, ar
 	annotationsToAdd, annotationsToRemove, err := parseSetUnsetArguments(args[2:], "Annotations must be in the format of KEY=VAL or KEY-")
 	FreakOut(err)
 
-	output, err := cliConnection.CliCommandWithoutTerminalOutput("curl", fmt.Sprintf("v3/%ss?names=%s", resource, name))
+	currentEntity, err := fetchResourceByName(cliConnection, resource, name)
 	FreakOut(err)
 
-	response := stringifyCurlResponse(output)
-	resources := ResourceList{}
-	err = json.Unmarshal([]byte(response), &resources)
-	FreakOut(err)
-
-	if len(resources.Resources) == 0 {
-		fmt.Printf("%s %s not found\r\n", resource, name)
-		return
-	} else if len(resources.Resources) > 1 {
-		fmt.Printf("%s %s is ambiguous, more than one result returned\r\n", resource, name)
-		return
-	}
-
-	url := fmt.Sprintf("v3/%ss/%s", resource, resources.Resources[0].Guid)
-
-	entityToAdd := ResourceModel{}
-	entityToAdd.Metadata.Annotations = make(map[string]*string)
-
+	updateEntity := ResourceModel{}
+	updateEntity.Metadata.Annotations = make(map[string]*string)
 	for key, val := range annotationsToAdd {
 		localVal := val
-		entityToAdd.Metadata.Annotations[key] = &localVal
+		updateEntity.Metadata.Annotations[key] = &localVal
 	}
 	for _, key := range annotationsToRemove {
-		entityToAdd.Metadata.Annotations[key] = nil
+		updateEntity.Metadata.Annotations[key] = nil
 	}
-	updateRequest, err := json.Marshal(entityToAdd)
 
-	output, err = cliConnection.CliCommandWithoutTerminalOutput("curl", url, "-X", "PATCH", "-d", string(updateRequest))
+	resultEntity, err := updateResource(cliConnection, updateEntity, resource, currentEntity.Guid)
 	FreakOut(err)
 
-	entity := ResourceModel{}
-	response = stringifyCurlResponse(output)
-	err = json.Unmarshal([]byte(response), &entity)
-	FreakOut(err)
-
-	displayAnnotations(entity, resource, name)
+	displayAnnotations(resultEntity, resource, name)
 }
 
 func stringifyCurlResponse(output []string) string {
@@ -173,6 +138,49 @@ func parseSetUnsetArguments(args []string, errorText string) (toAdd map[string]s
 			return
 		}
 	}
+
+	return
+}
+
+func fetchResourceByName(cliConnection plugin.CliConnection, resource string, name string) (entity ResourceModel, err error) {
+	output, err := cliConnection.CliCommandWithoutTerminalOutput("curl", fmt.Sprintf("v3/%ss?names=%s", resource, name))
+	if err != nil {
+		return
+	}
+
+	response := stringifyCurlResponse(output)
+	resources := ResourceList{}
+	err = json.Unmarshal([]byte(response), &resources)
+	if err != nil {
+		return
+	}
+
+	if len(resources.Resources) == 0 {
+		err = errors.New(fmt.Sprintf("%s %s not found\r\n", resource, name))
+		return
+	} else if len(resources.Resources) > 1 {
+		err = errors.New(fmt.Sprintf("%s %s is ambiguous, more than one result returned\r\n", resource, name))
+		return
+	}
+
+	entity = resources.Resources[0]
+	return
+}
+
+func updateResource(cliConnection plugin.CliConnection, updateEntity ResourceModel, resource string, guid string) (resultEntity ResourceModel, err error) {
+	updateUrl := fmt.Sprintf("v3/%ss/%s", resource, guid)
+	updateRequest, err := json.Marshal(updateEntity)
+	if err != nil {
+		return
+	}
+
+	output, err := cliConnection.CliCommandWithoutTerminalOutput("curl", updateUrl, "-X", "PATCH", "-d", string(updateRequest))
+	if err != nil {
+		return
+	}
+
+	response := stringifyCurlResponse(output)
+	err = json.Unmarshal([]byte(response), &resultEntity)
 
 	return
 }
