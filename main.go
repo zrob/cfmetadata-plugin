@@ -20,8 +20,8 @@ type ResourceModel struct {
 }
 
 type MetadataModel struct {
-	Labels      map[string]string `json:"labels"`
-	Annotations map[string]string `json:"annotations"`
+	Labels      map[string]*string `json:"labels"`
+	Annotations map[string]*string `json:"annotations"`
 }
 
 func main() {
@@ -88,15 +88,23 @@ func (c *CFMetadataPlugin) getAnnotations(cliConnection plugin.CliConnection, ar
 func (c *CFMetadataPlugin) setAnnotations(cliConnection plugin.CliConnection, args []string) {
 	resource := args[0]
 	name := args[1]
-	annotations := make(map[string]string)
+	annotationsToAdd := make(map[string]string)
+	var annotationsToRemove []string
 
 	for _, a := range args[2:] {
-		annotation := strings.Split(a, "=")
-		if len(annotation) != 2 {
-			fmt.Println("Annotations must be in the format of KEY=VAL")
+		if strings.Contains(a, "=") {
+			annotation := strings.Split(a, "=")
+			if len(annotation) != 2 {
+				fmt.Println("Annotations must be in the format of KEY=VAL or KEY-")
+				return
+			}
+			annotationsToAdd[annotation[0]] = annotation[1]
+		} else if strings.HasSuffix(a, "-") {
+			annotationsToRemove = append(annotationsToRemove, strings.TrimSuffix(a, "-"))
+		} else {
+			fmt.Println("Annotations must be in the format of KEY=VAL or KEY-")
 			return
 		}
-		annotations[annotation[0]] = annotation[1]
 	}
 
 	output, err := cliConnection.CliCommandWithoutTerminalOutput("curl", fmt.Sprintf("v3/%ss?names=%s", resource, name))
@@ -115,18 +123,24 @@ func (c *CFMetadataPlugin) setAnnotations(cliConnection plugin.CliConnection, ar
 		return
 	}
 
-	entity := resources.Resources[0]
-	url := fmt.Sprintf("v3/%ss/%s", resource, entity.Guid)
-	entity.Guid = ""
+	url := fmt.Sprintf("v3/%ss/%s", resource, resources.Resources[0].Guid)
 
-	for key, val := range annotations {
-		entity.Metadata.Annotations[key] = val
+	entityToAdd := ResourceModel{}
+	entityToAdd.Metadata.Annotations = make(map[string]*string)
+
+	for key, val := range annotationsToAdd {
+		localVal := val
+		entityToAdd.Metadata.Annotations[key] = &localVal
 	}
-	updateRequest, err := json.Marshal(entity)
+	for _, key := range annotationsToRemove {
+		entityToAdd.Metadata.Annotations[key] = nil
+	}
+	updateRequest, err := json.Marshal(entityToAdd)
 
 	output, err = cliConnection.CliCommandWithoutTerminalOutput("curl", url, "-X", "PATCH", "-d", string(updateRequest))
 	FreakOut(err)
 
+	entity := ResourceModel{}
 	response = stringifyCurlResponse(output)
 	err = json.Unmarshal([]byte(response), &entity)
 	FreakOut(err)
@@ -148,7 +162,7 @@ func displayAnnotations(entity ResourceModel, resource string, name string) {
 		fmt.Println("None")
 	} else {
 		for key, val := range entity.Metadata.Annotations {
-			fmt.Printf("%s: %s\r\n", key, val)
+			fmt.Printf("%s: %s\r\n", key, *val)
 		}
 	}
 }
