@@ -41,6 +41,15 @@ func (c *CFMetadataPlugin) Run(cliConnection plugin.CliConnection, args []string
 			c.getAnnotations(cliConnection, args[1:])
 		}
 	}
+	if args[0] == "labels" {
+		if argCount < 3 {
+			fmt.Println(c.GetMetadata().Commands[1].UsageDetails.Usage)
+		} else if argCount > 3 {
+			c.setLabels(cliConnection, args[1:])
+		} else {
+			c.getLabels(cliConnection, args[1:])
+		}
+	}
 }
 
 func (c *CFMetadataPlugin) GetMetadata() plugin.PluginMetadata {
@@ -57,6 +66,13 @@ func (c *CFMetadataPlugin) GetMetadata() plugin.PluginMetadata {
 				HelpText: "view or modify annotations for an API resource",
 				UsageDetails: plugin.Usage{
 					Usage: "cf annotations RESOURCE RESOURCE_NAME KEY=VAL KEY-",
+				},
+			},
+			{
+				Name:     "labels",
+				HelpText: "view or modify labels for an API resource",
+				UsageDetails: plugin.Usage{
+					Usage: "cf labels RESOURCE RESOURCE_NAME KEY=VAL KEY-",
 				},
 			},
 		},
@@ -99,14 +115,6 @@ func (c *CFMetadataPlugin) setAnnotations(cliConnection plugin.CliConnection, ar
 	displayAnnotations(resultEntity, resource, name)
 }
 
-func stringifyCurlResponse(output []string) string {
-	var responseString string
-	for _, part := range output {
-		responseString += part
-	}
-	return responseString
-}
-
 func displayAnnotations(entity ResourceModel, resource string, name string) {
 	fmt.Printf("Annotations for %s %s\r\n\r\n", resource, name)
 	if len(entity.Metadata.Annotations) == 0 {
@@ -116,6 +124,61 @@ func displayAnnotations(entity ResourceModel, resource string, name string) {
 			fmt.Printf("%s: %s\r\n", key, *val)
 		}
 	}
+}
+
+func (c *CFMetadataPlugin) getLabels(cliConnection plugin.CliConnection, args []string) {
+	resource := args[0]
+	name := args[1]
+
+	entity, err := fetchResourceByName(cliConnection, resource, name)
+	FreakOut(err)
+
+	displayLabels(entity, resource, name)
+}
+
+func (c *CFMetadataPlugin) setLabels(cliConnection plugin.CliConnection, args []string) {
+	resource := args[0]
+	name := args[1]
+
+	labelsToAdd, labelsToRemove, err := parseSetUnsetArguments(args[2:], "Labels must be in the format of KEY=VAL or KEY-")
+	FreakOut(err)
+
+	currentEntity, err := fetchResourceByName(cliConnection, resource, name)
+	FreakOut(err)
+
+	updateEntity := ResourceModel{}
+	updateEntity.Metadata.Labels = make(map[string]*string)
+	for key, val := range labelsToAdd {
+		localVal := val
+		updateEntity.Metadata.Labels[key] = &localVal
+	}
+	for _, key := range labelsToRemove {
+		updateEntity.Metadata.Labels[key] = nil
+	}
+
+	resultEntity, err := updateResource(cliConnection, updateEntity, resource, currentEntity.Guid)
+	FreakOut(err)
+
+	displayLabels(resultEntity, resource, name)
+}
+
+func displayLabels(entity ResourceModel, resource string, name string) {
+	fmt.Printf("Labels for %s %s\r\n\r\n", resource, name)
+	if len(entity.Metadata.Labels) == 0 {
+		fmt.Println("None")
+	} else {
+		for key, val := range entity.Metadata.Labels {
+			fmt.Printf("%s: %s\r\n", key, *val)
+		}
+	}
+}
+
+func stringifyCurlResponse(output []string) string {
+	var responseString string
+	for _, part := range output {
+		responseString += part
+	}
+	return responseString
 }
 
 func parseSetUnsetArguments(args []string, errorText string) (toAdd map[string]string, toRemove []string, err error) {
