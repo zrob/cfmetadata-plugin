@@ -14,13 +14,17 @@ A CF cli plugin to view and modify metadata
 ## Usage
 
 ### View all metadata 
-
-`cf metadata app my-app`
-`cf metadata space my-space`
-`cf metadata organization my-org`
+```
+cf metadata app my-app
+```
+```
+cf metadata space my-space
+```
+```
+cf metadata organization my-org
+```
 
 ### View labels
-
 ```
 cf labels app my-app
 ```
@@ -32,7 +36,6 @@ cf labels organization my-org
 ```
 
 ### View annotations
-
 ```
 cf annotations app my-app
 ```
