@@ -7,8 +7,9 @@ A CF cli plugin to view and modify metadata
 1. run `cf install-plugin <path-to-binary>`
 
 ## Known Issue
-The CF cli has a [bug](https://github.com/cloudfoundry/cli/issues/1108) that causes the user token to periodically expire. This will manifest as not found errors for
-resources that exist. To resolve run a normal cli command and then rerun the command from this plugin.
+Resolved in CLI [v6.43.0](https://github.com/cloudfoundry/cli/releases/tag/v6.43.0).
+~~The CF cli has a [bug](https://github.com/cloudfoundry/cli/issues/1108) that causes the user token to periodically expire. This will manifest as not found errors for
+resources that exist. To resolve run a normal cli command and then rerun the command from this plugin.~~
 
 ## Supported Resources
 - Organizations
