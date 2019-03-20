@@ -52,7 +52,7 @@ func (c *CFMetadataPlugin) Run(cliConnection plugin.CliConnection, args []string
 	}
 	if args[0] == "metadata" {
 		if argCount != 3 {
-			fmt.Println(c.GetMetadata().Commands[1].UsageDetails.Usage)
+			fmt.Println(c.GetMetadata().Commands[2].UsageDetails.Usage)
 		} else {
 			c.getMetadata(cliConnection, args[1:])
 		}
