@@ -62,3 +62,19 @@ cf labels my-app environment=production stable=true beta-
 ### Manage annotations
 
 same as labels
+
+### Select resources based on labels
+
+The CC API docs describe [valid selectors](http://v3-apidocs.cloudfoundry.org/version/3.68.0/index.html#labels-and-selectors).
+
+```
+cf select apps 'production=true' 
+```
+
+```
+cf select orgs 'production=true,cost_center=123' 
+```
+
+```
+cf select spaces 'production=true,cost_center=123' 
+```

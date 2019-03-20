@@ -17,6 +17,7 @@ type ResourceList struct {
 
 type ResourceModel struct {
 	Guid     string        `json:"guid,omitempty"`
+	Name     string        `json:"name,omitempty"`
 	Metadata MetadataModel `json:"metadata"`
 }
 
@@ -57,6 +58,13 @@ func (c *CFMetadataPlugin) Run(cliConnection plugin.CliConnection, args []string
 			c.getMetadata(cliConnection, args[1:])
 		}
 	}
+	if args[0] == "select" {
+		if argCount != 3 {
+			fmt.Println(c.GetMetadata().Commands[3].UsageDetails.Usage)
+		} else {
+			c.selectLabels(cliConnection, args[1:])
+		}
+	}
 }
 
 func (c *CFMetadataPlugin) GetMetadata() plugin.PluginMetadata {
@@ -87,6 +95,13 @@ func (c *CFMetadataPlugin) GetMetadata() plugin.PluginMetadata {
 				HelpText: "view labels and annotations for an API resource",
 				UsageDetails: plugin.Usage{
 					Usage: "cf metadata RESOURCE RESOURCE_NAME",
+				},
+			},
+			{
+				Name:     "select",
+				HelpText: "get API resources with labels matching the selector",
+				UsageDetails: plugin.Usage{
+					Usage: "cf select RESOURCE SELECTORS",
 				},
 			},
 		},
@@ -186,6 +201,25 @@ func (c *CFMetadataPlugin) setLabels(cliConnection plugin.CliConnection, args []
 	FreakOut(err)
 
 	displayLabels(resultEntity, resource, name)
+}
+
+func (c *CFMetadataPlugin) selectLabels(cliConnection plugin.CliConnection, args []string) {
+	resource := args[0]
+	selector := args[1]
+
+	requestUrl := fmt.Sprintf("v3/%s?label_selector=%s", resource, selector)
+	output, err := cliConnection.CliCommandWithoutTerminalOutput("curl", requestUrl)
+	FreakOut(err)
+
+	response := stringifyCurlResponse(output)
+	resources := ResourceList{}
+	err = json.Unmarshal([]byte(response), &resources)
+	FreakOut(err)
+
+	fmt.Printf("Showing %s that match selector %s\r\n\r\nname:\r\n", resource, selector)
+	for _, resource := range resources.Resources {
+		fmt.Println(resource.Name)
+	}
 }
 
 func displayLabels(entity ResourceModel, resource string, name string) {
