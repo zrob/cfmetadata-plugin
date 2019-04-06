@@ -56,7 +56,7 @@ cf annotations organization my-org
 - Add `environment` label, modify `stable` label,  remove `beta` label
 
 ```
-cf labels my-app environment=production stable=true beta-
+cf labels app my-app environment=production stable=true beta-
 ```
 
 ### Manage annotations
